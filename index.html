@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule → Calendar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --panel: #10151b;
+    --panel-2: #161d25;
+    --line: #2a333d;
+    --amber: #ffb347;
+    --amber-dim: #8a6a35;
+    --green: #7fd99a;
+    --text: #dfe6ec;
+    --text-dim: #7e8b98;
+    --red: #ff6b6b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #0a0d11;
+    background-image:
+      radial-gradient(circle at 50% 0%, #131a22 0%, #0a0d11 60%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    letter-spacing: 0.04em;
+    margin: 0;
+    color: var(--text);
+    font-weight: 600;
+  }
+  h1 span { color: var(--amber); }
+
+  .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  textarea {
+    width: 100%;
+    background: #0c1116;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--green);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 12px;
+    resize: vertical;
+    min-height: 180px;
+  }
+  textarea:focus, input:focus { outline: 2px solid var(--amber-dim); outline-offset: 1px; }
+
+  textarea::placeholder { color: #3a4550; }
+
+  .row { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+  .field { flex: 1; min-width: 140px; }
+
+  input[type="text"] {
+    width: 100%;
+    background: #0c1116;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 3px;
+    border: 1px solid var(--amber-dim);
+    background: transparent;
+    color: var(--amber);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  button:hover { background: var(--amber); color: #1a1204; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 18px; align-items: center; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  th, td {
+    text-align: left;
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  th {
+    color: var(--text-dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10px;
+  }
+  td.warn { color: var(--red); }
+  td.ok { color: var(--green); }
+
+  .status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    margin-top: 14px;
+    min-height: 16px;
+  }
+  .status.err { color: var(--red); }
+  .status.ok { color: var(--green); }
+
+  .hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SKED<span>→</span>ICS</h1>
+    <div class="tag">flight schedule importer</div>
+  </header>
+
+  <div class="panel">
+    <label for="sched">Paste schedule lines</label>
+    <textarea id="sched" placeholder="06/03/2026 4137 DFW 0701 LBB 0758
+06/03/2026 4137 LBB 0848 DFW 0951
+06/04/2026 3360 LFT 0607 DFW 0739"></textarea>
+
+    <div class="row">
+      <div class="field">
+        <label for="airline">Airline code</label>
+        <input type="text" id="airline" value="AA" maxlength="3">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="parseBtn">Parse</button>
+      <button id="downloadBtn" disabled>Download .ics</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="panel" id="previewPanel" style="display:none;">
+    <label>Preview</label>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Flight</th><th>Route</th><th>Dep (local)</th><th>Arr (local)</th><th>Zone</th></tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+    <div class="hint" id="warnHint"></div>
+  </div>
+
+  <div class="hint">
+    Times are read as local to each airport. Recognized US airports map to the correct IANA timezone
+    (with DST handled automatically by your calendar app). Unrecognized airports fall back to Central
+    time and are flagged in red above — fix those manually in Calendar after import if needed.
+  </div>
+</div>
+
+<script>
+// IANA timezone lookup for common US airports (extend as needed).
+const AIRPORT_TZ = {
+  // Central
+  DFW:"America/Chicago", DAL:"America/Chicago", LBB:"America/Chicago", LFT:"America/Chicago",
+  IAH:"America/Chicago", HOU:"America/Chicago", AUS:"America/Chicago", SAT:"America/Chicago",
+  MSY:"America/Chicago", ORD:"America/Chicago", MDW:"America/Chicago", MCI:"America/Chicago",
+  STL:"America/Chicago", MSP:"America/Chicago", MEM:"America/Chicago", OKC:"America/Chicago",
+  TUL:"America/Chicago", LIT:"America/Chicago", ICT:"America/Chicago", GRK:"America/Chicago",
+  ABI:"America/Chicago", AMA:"America/Chicago", MAF:"America/Chicago", SPS:"America/Chicago",
+  CLL:"America/Chicago", ELP:"America/Denver", CMI:"America/Chicago", XNA:"America/Chicago",
+  LRD:"America/Chicago", BRO:"America/Chicago", HRL:"America/Chicago", CRP:"America/Chicago",
+  GGG:"America/Chicago", TYR:"America/Chicago", SHV:"America/Chicago", LCH:"America/Chicago",
+  BTR:"America/Chicago", JAN:"America/Chicago", MOB:"America/Chicago", MLU:"America/Chicago",
+  // Mountain
+  BIL:"America/Denver", DEN:"America/Denver", SLC:"America/Denver", ABQ:"America/Denver",
+  COS:"America/Denver", BOI:"America/Denver", MSO:"America/Denver", GTF:"America/Denver",
+  BZN:"America/Denver", HLN:"America/Denver", GJT:"America/Denver", JAC:"America/Denver",
+  PHX:"America/Phoenix", TUS:"America/Phoenix",
+  // Eastern
+  ATL:"America/New_York", JFK:"America/New_York", LGA:"America/New_York", EWR:"America/New_York",
+  BOS:"America/New_York", PHL:"America/New_York", DCA:"America/New_York", IAD:"America/New_York",
+  BWI:"America/New_York", CLT:"America/New_York", MIA:"America/New_York", FLL:"America/New_York",
+  MCO:"America/New_York", TPA:"America/New_York", PIT:"America/New_York", CLE:"America/New_York",
+  DTW:"America/New_York", CVG:"America/New_York", IND:"America/New_York", BNA:"America/Chicago",
+  RDU:"America/New_York", RIC:"America/New_York", GSP:"America/New_York", CHS:"America/New_York",
+  CAE:"America/New_York", AVL:"America/New_York", TYS:"America/New_York", GSO:"America/New_York",
+  ORF:"America/New_York", ROA:"America/New_York", SAV:"America/New_York", JAX:"America/New_York",
+  // Pacific
+  LAX:"America/Los_Angeles", SFO:"America/Los_Angeles", SAN:"America/Los_Angeles",
+  SEA:"America/Los_Angeles", PDX:"America/Los_Angeles", SJC:"America/Los_Angeles",
+  OAK:"America/Los_Angeles", SMF:"America/Los_Angeles", LAS:"America/Los_Angeles",
+  ONT:"America/Los_Angeles", BUR:"America/Los_Angeles", SNA:"America/Los_Angeles"
+};
+const DEFAULT_TZ = "America/Chicago";
+
+const VTIMEZONES = {
+"America/Chicago": `BEGIN:VTIMEZONE
+TZID:America/Chicago
+X-LIC-LOCATION:America/Chicago
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE`,
+"America/Denver": `BEGIN:VTIMEZONE
+TZID:America/Denver
+X-LIC-LOCATION:America/Denver
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0600
+TZNAME:MDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0700
+TZNAME:MST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE`,
+"America/Phoenix": `BEGIN:VTIMEZONE
+TZID:America/Phoenix
+X-LIC-LOCATION:America/Phoenix
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0700
+TZNAME:MST
+DTSTART:19700101T000000
+END:STANDARD
+END:VTIMEZONE`,
+"America/New_York": `BEGIN:VTIMEZONE
+TZID:America/New_York
+X-LIC-LOCATION:America/New_York
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+TZNAME:EDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+TZNAME:EST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE`,
+"America/Los_Angeles": `BEGIN:VTIMEZONE
+TZID:America/Los_Angeles
+X-LIC-LOCATION:America/Los_Angeles
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0800
+TZOFFSETTO:-0700
+TZNAME:PDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0800
+TZNAME:PST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE`
+};
+
+let parsedLegs = [];
+
+function parseLine(line) {
+  const parts = line.trim().split(/\s+/);
+  if (parts.length !== 6) return null;
+  const [dateStr, flightNum, orig, depTime, dest, arrTime] = parts;
+  const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  if (!/^\d{4}$/.test(depTime) || !/^\d{4}$/.test(arrTime)) return null;
+  const [, mm, dd, yyyy] = m;
+  return {
+    year: yyyy, month: mm, day: dd,
+    flightNum, orig: orig.toUpperCase(), dest: dest.toUpperCase(),
+    depTime, arrTime,
+    origTz: AIRPORT_TZ[orig.toUpperCase()] || null,
+    destTz: AIRPORT_TZ[dest.toUpperCase()] || null
+  };
+}
+
+function fmtLocalDT(year, month, day, hhmm) {
+  return `${year}${month}${day}T${hhmm.slice(0,2)}${hhmm.slice(2,4)}00`;
+}
+
+function escapeICS(str) {
+  return String(str).replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;');
+}
+
+document.getElementById('parseBtn').addEventListener('click', () => {
+  const raw = document.getElementById('sched').value;
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const statusEl = document.getElementById('status');
+  const legs = [];
+  let badLines = 0;
+
+  for (const line of lines) {
+    const leg = parseLine(line);
+    if (!leg) { badLines++; continue; }
+    legs.push(leg);
+  }
+
+  if (legs.length === 0) {
+    statusEl.textContent = 'No valid lines found. Expected format: MM/DD/YYYY FLIGHT ORIG HHMM DEST HHMM';
+    statusEl.className = 'status err';
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('previewPanel').style.display = 'none';
+    return;
+  }
+
+  parsedLegs = legs;
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  let warnCount = 0;
+
+  legs.forEach(leg => {
+    const tr = document.createElement('tr');
+    const origWarn = !leg.origTz;
+    const destWarn = !leg.destTz;
+    if (origWarn || destWarn) warnCount++;
+    tr.innerHTML = `
+      <td>${leg.month}/${leg.day}/${leg.year}</td>
+      <td>${leg.flightNum}</td>
+      <td class="${origWarn||destWarn?'warn':'ok'}">${leg.orig} → ${leg.dest}</td>
+      <td>${leg.depTime}</td>
+      <td>${leg.arrTime}</td>
+      <td class="${origWarn||destWarn?'warn':'ok'}">${leg.origTz || DEFAULT_TZ}${origWarn?' (guess)':''} / ${leg.destTz || DEFAULT_TZ}${destWarn?' (guess)':''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('previewPanel').style.display = 'block';
+  document.getElementById('warnHint').textContent = warnCount > 0
+    ? `${warnCount} leg(s) use an unrecognized airport code — defaulted to Central time. Double-check those after import.`
+    : 'All airports recognized.';
+
+  let msg = `Parsed ${legs.length} leg(s).`;
+  if (badLines > 0) msg += ` Skipped ${badLines} line(s) that didn't match the expected format.`;
+  statusEl.textContent = msg;
+  statusEl.className = 'status ok';
+  document.getElementById('downloadBtn').disabled = false;
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const airline = (document.getElementById('airline').value || '').trim().toUpperCase() || 'XX';
+  const usedTz = new Set();
+  const now = new Date();
+  const dtstamp = now.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+
+  const events = parsedLegs.map((leg, i) => {
+    const origTz = leg.origTz || DEFAULT_TZ;
+    const destTz = leg.destTz || DEFAULT_TZ;
+    usedTz.add(origTz);
+    usedTz.add(destTz);
+    const dtStart = fmtLocalDT(leg.year, leg.month, leg.day, leg.depTime);
+    const dtEnd = fmtLocalDT(leg.year, leg.month, leg.day, leg.arrTime);
+    const uid = `${leg.year}${leg.month}${leg.day}-${leg.flightNum}-${i}@sked-ics`;
+    return `BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:${dtstamp}
+DTSTART;TZID=${origTz}:${dtStart}
+DTEND;TZID=${destTz}:${dtEnd}
+SUMMARY:${escapeICS(airline + leg.flightNum + ' ' + leg.orig + ' \u2192 ' + leg.dest)}
+LOCATION:${escapeICS(leg.orig)}
+DESCRIPTION:${escapeICS('Flight ' + airline + leg.flightNum + ' from ' + leg.orig + ' to ' + leg.dest)}
+END:VEVENT`;
+  }).join('\n');
+
+  const vtimezones = Array.from(usedTz).map(tz => VTIMEZONES[tz] || VTIMEZONES[DEFAULT_TZ]).join('\n');
+
+  const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SKED-ICS//Flight Schedule Importer//EN
+CALSCALE:GREGORIAN
+${vtimezones}
+${events}
+END:VCALENDAR`;
+
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'flight_schedule.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
